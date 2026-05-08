@@ -26,12 +26,11 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 _GENERATE_PROMPT_PATH = Path(__file__).parent / "generate.md"
-_TRANSLATE_PROMPT_PATH = Path(__file__).parent / "translate.md"
 _CONTEXTS_DIR = Path(__file__).parent / "contexts"
 _GUIDES_DIR = Path(__file__).parent / "guides"
 _GENERATE_LANG = "en"
-_TRANSLATE_LANG = "ko"
 _MODEL = "claude-sonnet-4-6"
+_RUNS = 3
 
 _AUTH_ERROR_PATTERNS = (
     "not logged in",
@@ -223,116 +222,6 @@ def generate(context: dict, model: str = _MODEL, label: str = "") -> dict | None
 
 
 # ---------------------------------------------------------------------------
-# Translation — mirrors generator.translate_guide (workspace subprocess variant)
-# ---------------------------------------------------------------------------
-
-
-def translate(guide: dict, model: str = _MODEL, label: str = "") -> dict | None:
-    if _shutdown.is_set():
-        return None
-
-    label = label or guide.get("cve_id", "unknown")
-    logger.info("translating ctx=%s", label)
-
-    user_message = json.dumps(
-        {
-            "instruction": f"Translate this vulnerability guide to {_TRANSLATE_LANG}.",
-            "target_language": _TRANSLATE_LANG,
-            "guide": guide,
-        },
-        ensure_ascii=False,
-    )
-
-    proc = subprocess.Popen(
-        [
-            "claude",
-            "--print",
-            "--output-format",
-            "json",
-            "--model",
-            model,
-            "--system-prompt",
-            _TRANSLATE_PROMPT_PATH.read_text(encoding="utf-8"),
-        ],
-        stdin=subprocess.PIPE,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
-    with _procs_lock:
-        _active_procs.add(proc)
-    try:
-        stdout_b, stderr_b = proc.communicate(input=user_message.encode("utf-8"))
-    finally:
-        with _procs_lock:
-            _active_procs.discard(proc)
-
-    stdout = stdout_b.decode("utf-8", errors="replace")
-    stderr = stderr_b.decode("utf-8", errors="replace")
-
-    if proc.returncode != 0:
-        logger.error(
-            "translate ctx=%s claude exited %d stderr=%s",
-            label,
-            proc.returncode,
-            stderr[:500],
-        )
-        return None
-
-    try:
-        envelope = json.loads(stdout)
-    except json.JSONDecodeError:
-        logger.error(
-            "translate ctx=%s envelope_parse_failed stdout=%s", label, stdout[:200]
-        )
-        return None
-
-    if not isinstance(envelope, dict):
-        logger.error("translate ctx=%s envelope_not_dict", label)
-        return None
-
-    if envelope.get("is_error"):
-        result_text = envelope.get("result", "")
-        if not isinstance(result_text, str):
-            result_text = json.dumps(result_text)
-        tag = (
-            "auth_error"
-            if any(p in result_text.lower() for p in _AUTH_ERROR_PATTERNS)
-            else "llm_error"
-        )
-        logger.error("translate ctx=%s %s: %s", label, tag, result_text[:300])
-        return None
-
-    inner = envelope.get("result")
-    if not isinstance(inner, str):
-        logger.error("translate ctx=%s envelope_result_not_string", label)
-        return None
-
-    translated = _parse_json_response(inner)
-    if translated is None:
-        logger.error("translate ctx=%s guide_json_parse_failed", label)
-        return None
-
-    usage = envelope.get("usage") or {}
-    logger.info(
-        "translated ctx=%s input_tokens=%s output_tokens=%s",
-        label,
-        usage.get("input_tokens"),
-        usage.get("output_tokens"),
-    )
-
-    translated["lang"] = _TRANSLATE_LANG
-    translated["generated_at"] = datetime.now(timezone.utc).isoformat()
-    translated.setdefault("metadata", {}).update(
-        {
-            "model": model,
-            "input_tokens": usage.get("input_tokens"),
-            "generation_tokens": usage.get("output_tokens"),
-        }
-    )
-
-    return translated
-
-
 # ---------------------------------------------------------------------------
 # Per-file worker
 # ---------------------------------------------------------------------------
@@ -345,29 +234,21 @@ def _process_file(ctx_path: Path, model: str) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     label = str(ctx_path.relative_to(_CONTEXTS_DIR).with_suffix(""))
 
-    en_path = out_dir / f"{base}_{_GENERATE_LANG}.json"
-    ko_path = out_dir / f"{base}_{_TRANSLATE_LANG}.json"
+    for n in range(1, _RUNS + 1):
+        out_path = out_dir / f"{base}_{n}.json"
 
-    if en_path.exists() and ko_path.exists():
-        return
+        if out_path.exists():
+            continue
 
-    if en_path.exists():
-        guide = json.loads(en_path.read_text(encoding="utf-8"))
-    else:
-        guide = generate(context, model=model, label=label)
+        run_label = f"{label}[{n}]"
+        guide = generate(context, model=model, label=run_label)
         if guide:
-            en_path.write_text(json.dumps(guide, ensure_ascii=False, indent=2), encoding="utf-8")
-            logger.info("wrote %s", en_path)
+            out_path.write_text(
+                json.dumps(guide, ensure_ascii=False, indent=2), encoding="utf-8"
+            )
+            logger.info("wrote %s", out_path)
         else:
-            logger.error("generate failed ctx=%s", label)
-
-    if guide and not ko_path.exists():
-        translated = translate(guide, model=model, label=label)
-        if translated:
-            ko_path.write_text(json.dumps(translated, ensure_ascii=False, indent=2), encoding="utf-8")
-            logger.info("wrote %s", ko_path)
-        else:
-            logger.error("translate failed ctx=%s", label)
+            logger.error("generate failed ctx=%s", run_label)
 
 
 # ---------------------------------------------------------------------------
