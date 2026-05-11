@@ -1,12 +1,14 @@
 # Agent Prompt — Generate Quality Report
 
+> Below, the 'N' in every instance of "revN" indicates an integer greater than or equal to 0. You must check for every value of 'N', starting from 0, until no matches are found.  
+
 ## Reference Documents
 
 **Before writing anything, read these files to calibrate section structure, table formatting, writing style, and level of detail:**
 
-- `reports/cve-1999-0016.md`
-- `reports/cve-2024-3400.md`
-- `reports/cve-2014-0160.md`
+- `reports_rev0/cve-1999-0016.md`
+- `reports_rev0/cve-2024-3400.md`
+- `reports_rev0/cve-2014-0160.md`
 
 The output for any new CVE must match those documents exactly in section count, section order, heading text, table column names, judgment language (통과 / 실패 / 비일관 / 전 통과 / 전 실패), and writing style. Do not add, remove, or rename any section.
 
@@ -14,23 +16,23 @@ The output for any new CVE must match those documents exactly in section count, 
 
 ## Task
 
-For each CVE ID that has guide files under `guides/{cve_id}/` but does **not** yet have a corresponding `reports/{cve_id}.md`, read all guide files and produce the report.
+For each CVE ID that has guide files under `guides_revN/{cve_id}/` but does **not** yet have a corresponding `reports_revN/{cve_id}.md`, read all guide files and produce the report.
 
 ## Input
 
-- `guides/{cve_id}/{case}_{run}.json` — generated guide files. Each file encodes one run of one context variant. Run numbers are `_1`, `_2`, `_3`. All variants and all runs must be read before writing the report.
+- `guides_revN/{cve_id}/{case}_{run}.json` — generated guide files. Each file encodes one run of one context variant. Run numbers are `_1`, `_2`, `_3`. All variants and all runs must be read before writing the report.
 - `contexts/{cve_id}/full.json` — for reference when assessing what information was available to the model.
 - `analyses/{cve_id}.md` — for reference on expected field contributions and test case intent.
 
 ## Discovery Logic
 
-1. List all CVE IDs that have at least one file under `guides/{cve_id}/`.
-2. For each CVE ID, check whether `reports/{cve_id}.md` already exists.
+1. List all CVE IDs that have at least one file under `guides_revN/{cve_id}/`.
+2. For each CVE ID, check whether `reports_revN/{cve_id}.md` already exists.
 3. Process only the CVEs for which the report is missing.
 
 ---
 
-## Output — `reports/{cve_id}.md`
+## Output — `reports_revN/{cve_id}.md`
 
 Write in Korean. Field names, file paths, JSON key names, and source identifiers stay in their original form.
 

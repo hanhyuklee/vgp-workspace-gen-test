@@ -25,10 +25,10 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-_GENERATE_PROMPT_PATH = Path(__file__).parent / "generate.md"
+_PROMPT_PATH = Path(__file__).parent / "prompt_rev1.md"
 _CONTEXTS_DIR = Path(__file__).parent / "contexts"
-_GUIDES_DIR = Path(__file__).parent / "guides"
-_GENERATE_LANG = "en"
+_GUIDES_DIR = Path(__file__).parent / "guides_rev1"
+_LANG = "en"
 _MODEL = "claude-sonnet-4-6"
 _RUNS = 3
 
@@ -132,7 +132,7 @@ def generate(context: dict, model: str = _MODEL, label: str = "") -> dict | None
             "--model",
             model,
             "--system-prompt",
-            _GENERATE_PROMPT_PATH.read_text(encoding="utf-8"),
+            _PROMPT_PATH.read_text(encoding="utf-8"),
         ],
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
@@ -142,7 +142,7 @@ def generate(context: dict, model: str = _MODEL, label: str = "") -> dict | None
         _active_procs.add(proc)
     try:
         stdout_b, stderr_b = proc.communicate(
-            input=_format_user_message(context, _GENERATE_LANG).encode("utf-8")
+            input=_format_user_message(context, _LANG).encode("utf-8")
         )
     finally:
         with _procs_lock:
@@ -221,7 +221,6 @@ def generate(context: dict, model: str = _MODEL, label: str = "") -> dict | None
     return guide
 
 
-# ---------------------------------------------------------------------------
 # ---------------------------------------------------------------------------
 # Per-file worker
 # ---------------------------------------------------------------------------
