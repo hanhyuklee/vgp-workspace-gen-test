@@ -25,9 +25,9 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-_PROMPT_PATH = Path(__file__).parent / "prompt_rev1.md"
+_PROMPT_PATH = Path(__file__).parent / "prompt_rev2.md"
 _CONTEXTS_DIR = Path(__file__).parent / "contexts"
-_GUIDES_DIR = Path(__file__).parent / "guides_rev1"
+_GUIDES_DIR = Path(__file__).parent / "guides_rev2"
 _LANG = "en"
 _MODEL = "claude-sonnet-4-6"
 _RUNS = 3
